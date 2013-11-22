@@ -41,7 +41,7 @@ const (
 	QueryEndpoint          = "Query"
 	ScanEndpoint           = "Scan"
 
-	IllegalChars          = "$%^" // TODO: Find out what is legal for table names and attributes.
+	IllegalChars          = "$%^" // TODO(joy): Find out what is legal for table names and attributes.
 	omitEmptyTag          = "omitempty"
 	ignoreTag             = "-"
 	numDigitsPrecision    = 38
