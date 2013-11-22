@@ -24,6 +24,7 @@ const (
 	SelectSpecific  = "SPECIFIC_ATTRIBUTES"
 	SelectCount     = "COUNT"
 
+	// Return consumed capacity params.
 	ConsumedTotal = "TOTAL"
 	ConsumedNone  = "NONE"
 
