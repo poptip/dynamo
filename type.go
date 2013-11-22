@@ -1,45 +1,41 @@
 package dynamo
 
+const (
+	// Query condition operators.
+	ConditionEqual              = "EQ"
+	ConditionNotEqual           = "NE"
+	ConditionLessThanOrEqual    = "LE"
+	ConditionLessThan           = "LT"
+	ConditionGreaterThanOrEqual = "GE"
+	ConditionGreaterThan        = "GT"
+	ConditionBeginsWith         = "BEGINS_WITH"
+	ConditionBetween            = "BETWEEN"
+
+	// Scan condition operators.
+	ConditionContains           = "CONTAINS"
+	ConditionNotContains        = "NOT_CONTAINS"
+	ConditionAttributeExists    = "NOT_NULL"
+	ConditionAttributeNotExists = "NULL"
+	ConditionIn                 = "IN"
+
+	// Query selection operators.
+	SelectAll       = "ALL_ATTRIBUTES"
+	SelectProjected = "ALL_PROJECTED_ATTRIBUTES"
+	SelectSpecific  = "SPECIFIC_ATTRIBUTES"
+	SelectCount     = "COUNT"
+
+	ConsumedTotal = "TOTAL"
+	ConsumedNone  = "NONE"
+
+	// Commonly encountered errors.
+	ProvisionedThroughputExceededException = "ProvisionedThroughputExceededException"
+	ResourceNotFoundExcpetion              = "ResourceNotFoundException"
+)
+
+// Table-level operations.
 type ListTablesRequest struct {
-	ExclusiveStartTableName string `json:"ExclusiveStartTableName,omitempty"`
-	Limit                   int    `json:"Limit,omitempty"`
-}
-
-type BatchRequest struct {
-	ReturnConsumedCapacity      string                   `json:"ReturnConsumedCapacity,omitempty"`
-	ReturnItemCollectionMetrics string                   `json:"ReturnItemCollectionMetrics,omitempty"`
-	RequestItems                map[string][]RequestItem `json:"RequestItems"`
-}
-
-// Test if leaving ConsistentTead out for batchGet is OK.
-type RequestItem struct {
-	PutRequest        PutRequest     `json:"PutRequest,omitempty"`
-	DeleteRequest     DeleteRequest  `json:"DeleteRequest,omitempty"`
-	AttributesToGet   []string       `json:"AttributesToGet,omitempty"`
-	ConsistentRead    bool           `json:"ConsistentRead,omitempty"`
-	Keys              []AttributeSet `json:"Keys,omitempty"`
-	ExclusiveStartKey AttributeSet   `json:"ExclusiveStartKey,omitempty"`
-	IndexName         string         `json:"IndexName,omitempty"`
-	//KeyConditions
-	Limit int `json:"Limit,omitempty"`
-}
-
-type DeleteRequest struct {
-}
-
-type BasicRequest struct {
-	ReturnConsumedCapacity      string `json:"ReturnConsumedCapacity,omitempty"`
-	ReturnItemCollectionMetrics string `json:"ReturnItemCollectionMetrics,omitempty"`
-	ReturnValues                string `json:"ReturnValues,omitempty"`
-	TableName                   string `json:"TableName,omitempty"`
-}
-
-type CreateTableRequest struct {
-	BasicRequest
-	AttributeDefinitions  []AttributeDefinition
-	KeySchema             []Key
-	LocalSecondaryIndexes []SecondaryIndex
-	ProvisionedThroughput Throughput
+	ExclusiveStartTableName string `json:",omitempty"`
+	Limit                   int    `json:",omitempty"`
 }
 
 type ListTablesResponse struct {
@@ -48,18 +44,30 @@ type ListTablesResponse struct {
 }
 
 type TableDescriptionWrapper struct {
-	Table TableDescription `json:"TableDescription"`
+	Description TableDescription `json:"TableDescription"`
 }
 
-type AttributeDefinition struct {
-	Name string `json:"AttributeName"`
-	Type string `json:"AttributeType"`
+type TableDescription struct {
+	AttributeDefinitions  []AttributeDefinition
+	CreationDateTime      float64 // Expressed in scientific notation, i.e. 1.3E9, in unix seconds.
+	ItemCount             int
+	KeySchema             []Key
+	LocalSecondaryIndexes []SecondaryIndex
+	ProvisionedThroughput Throughput
+	TableName             string
+	TableSizeBytes        int64
+	TableStatus           string
 }
 
-type Key struct {
-	Name string `json:"AttributeName"`
-	Type string `json:"KeyType"`
+type TableRequest struct {
+	TableName             string
+	AttributeDefinitions  []AttributeDefinition `json:",omitempty"`
+	KeySchema             []Key                 `json:",omitempty"`
+	LocalSecondaryIndexes []SecondaryIndex      `json:",omitempty"`
+	ProvisionedThroughput Throughput
 }
+
+// Table attributes.
 
 type SecondaryIndex struct {
 	IndexName  string
@@ -72,34 +80,27 @@ type IndexProjection struct {
 	ProjectionType   string
 }
 
-type TableDescription struct {
-	AttributeDefinitions  []AttributeDefinition `json:"AttributeDefinitions"`
-	CreationDateTime      int64                 `json:"CreationDateTime"`
-	ItemCount             int                   `json:"ItemCount"`
-	KeySchema             []Key                 `json:"KeySchema"`
-	LocalSecondaryIndexes []SecondaryIndex      `json:"LocalSecondayIndexes"`
-	ProvisionedThroughput Throughput            `json:"ProvisionedThroughput"`
-	TableName             string                `json:"TableName"`
-	TableSizeBytes        int64                 `json:"TableSizeBytes"`
-	TableStatus           string                `json:"TableStatus"`
+type Throughput struct {
+	ReadUnits              int   `json:"ReadCapacityUnits"`
+	WriteUnits             int   `json:"WriteCapacityUnits"`
+	LastDecreaseDateTime   int64 `json:",omitempty"`
+	LastIncreaseDateTime   int64 `json:",omitempty"`
+	NumberOfDecreasesToday int   `json:",omitempty"`
 }
 
-type Error struct {
-	StatusCode int
-	Type       string `json:"__type"`
-	Message    string `json:"message"`
+// Item attributes.
+
+type AttributeDefinition struct {
+	Name string `json:"AttributeName"`
+	Type string `json:"AttributeType"`
+}
+
+type Key struct {
+	Name string `json:"AttributeName"`
+	Type string `json:"KeyType"`
 }
 
 type AttributeSet map[string]AttributeVal
-
-// Test if having an empty object is bad
-
-type PutRequest struct {
-	BasicRequest
-	Item AttributeSet `json:"Item"`
-}
-
-// Test what happens when you make UpdateItem/PutItem Request with multiple things
 
 type AttributeVal struct {
 	S  string   `json:"S,omitempty"`
@@ -110,17 +111,117 @@ type AttributeVal struct {
 	BS []string `json:"BS,omitempty"`
 }
 
-// Test what happens when one attribute has multiple values.
-
-type TableUpdate struct {
-	TableName             string     `json:"TableName"`
-	ProvisionedThroughput Throughput `json:"ProvisionedThroughput"`
+func (val AttributeVal) IsValid() bool {
+	nonEmpties := 0
+	if len(val.S) > 0 {
+		nonEmpties++
+	}
+	if len(val.SS) > 0 {
+		nonEmpties++
+	}
+	if len(val.N) > 0 {
+		nonEmpties++
+	}
+	if len(val.NS) > 0 {
+		nonEmpties++
+	}
+	if len(val.B) > 0 {
+		nonEmpties++
+	}
+	if len(val.BS) > 0 {
+		nonEmpties++
+	}
+	return nonEmpties == 1
 }
 
-type Throughput struct {
-	ReadUnits              int   `json:"ReadCapacityUnits"`
-	WriteUnits             int   `json:"WriteCapacityUnits"`
-	LastDecreaseDateTime   int64 `json:"LastDecreaseDateTime,omitempty"`
-	LastIncreaseDateTime   int64 `json:"LastIncreaseDateTime,omitempty"`
-	NumberOfDecreasesToday int   `json:"NumberOfDecreasesToday,omitempty"`
+// CRUD operations.
+
+type BasicRequest struct {
+	ReturnConsumedCapacity      string `json:",omitempty"`
+	ReturnItemCollectionMetrics string `json:",omitempty"`
+	ReturnValues                string `json:",omitempty"`
+	TableName                   string
+}
+
+type PutRequest struct {
+	BasicRequest
+	Item AttributeSet `json:"Item"`
+}
+
+type Query struct {
+	TableName              string
+	AttributesToGet        []string `json:",omitempty"`
+	ConsistentRead         bool
+	Select                 string
+	ScanIndexForward       bool         `json:",omitempty"`
+	ReturnConsumedCapacity string       `json:",omitempty"`
+	ExclusiveStartKey      AttributeSet `json:",omitempty"`
+	IndexName              string       `json:",omitempty"`
+	KeyConditions          map[string]Condition
+	Limit                  int `json:",omitempty"`
+}
+
+type Condition struct {
+	AttributeValueList  []AttributeVal
+	ComparisonOperation string
+}
+
+type Scan struct {
+	TableName              string
+	AttributesToGet        []string `json:",omitempty"`
+	ConsistentRead         bool
+	Select                 string
+	ScanIndexForward       bool         // true = ascending, the default if not specified.
+	ReturnConsumedCapacity string       `json:",omitempty"`
+	ExclusiveStartKey      AttributeSet `json:",omitempty"`
+	IndexName              string       `json:",omitempty"`
+	KeyConditions          map[string]Condition
+	Limit                  int `json:",omitempty"`
+}
+
+// Batch operations.
+
+type BatchWriteRequest struct {
+	ReturnConsumedCapacity      string                   `json:"ReturnConsumedCapacity,omitempty"`
+	ReturnItemCollectionMetrics string                   `json:"ReturnItemCollectionMetrics,omitempty"`
+	RequestItems                map[string][]RequestItem `json:"RequestItems,omitempty"`
+}
+
+type BatchGetRequest struct {
+	ReturnConsumedCapacity      string                 `json:"ReturnConsumedCapacity,omitempty"`
+	ReturnItemCollectionMetrics string                 `json:"ReturnItemCollectionMetrics,omitempty"`
+	RequestItems                map[string]RequestItem `json:"RequestItems,omitempty"`
+}
+
+type ConsumedStats struct {
+	CapacityUnits int
+	TableName     string // TODO: Implement TableName restrictions.
+}
+
+type BatchResponse struct {
+	ConsumedCapacity []ConsumedStats
+	Responses        map[string][]AttributeSet
+	UnprocessedKeys  map[string]RequestItem
+}
+
+type RequestItem struct {
+	// Have to make these pointers so that omitempty will work. Could consider splitting up this struct into Get vs. Put.
+	PutRequest        *PutRequest    `json:",omitempty"`
+	DeleteRequest     *DeleteRequest `json:",omitempty"`
+	AttributesToGet   []string       `json:",omitempty"`
+	ConsistentRead    bool           `json:",omitempty"`
+	Keys              []AttributeSet `json:",omitempty"`
+	ExclusiveStartKey AttributeSet   `json:",omitempty"`
+	IndexName         string         `json:",omitempty"`
+	Limit             int            `json:",omitempty"`
+}
+
+type DeleteRequest struct {
+	Key AttributeSet `json:",omitempty"`
+}
+
+type Error struct {
+	StatusCode int
+	Type       string `json:"__type"`
+	Message    string `json:"message"`
 }
