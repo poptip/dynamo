@@ -46,6 +46,7 @@ type ListTablesResponse struct {
 
 type TableDescriptionWrapper struct {
 	Description TableDescription `json:"TableDescription"`
+	Table       TableDescription `json:"Table"`
 }
 
 type TableDescription struct {
@@ -82,11 +83,11 @@ type IndexProjection struct {
 }
 
 type Throughput struct {
-	ReadUnits              int   `json:"ReadCapacityUnits"`
-	WriteUnits             int   `json:"WriteCapacityUnits"`
-	LastDecreaseDateTime   int64 `json:",omitempty"`
-	LastIncreaseDateTime   int64 `json:",omitempty"`
-	NumberOfDecreasesToday int   `json:",omitempty"`
+	ReadUnits              int     `json:"ReadCapacityUnits"`
+	WriteUnits             int     `json:"WriteCapacityUnits"`
+	LastDecreaseDateTime   float64 `json:",omitempty"`
+	LastIncreaseDateTime   float64 `json:",omitempty"`
+	NumberOfDecreasesToday int     `json:",omitempty"`
 }
 
 // Item attributes.

@@ -150,7 +150,7 @@ func (r *Request) SetContent(data interface{}) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("JSON: %s", string(b))
+	// fmt.Printf("JSON: %s\n", string(b))
 	r.req.Body = ioutil.NopCloser(bytes.NewBuffer(b))
 	r.req.ContentLength = int64(len(b))
 	return err
@@ -252,18 +252,18 @@ func isValidType(attrType string) bool {
 }
 
 func (c *Client) DescribeTable(table string) (TableDescription, error) {
-	td := TableDescription{}
+	td := TableDescriptionWrapper{}
 	r, err := c.NewRequest(DescribeTableEndpoint)
 	if err != nil {
-		return td, err
+		return td.Table, err
 	}
 	r.SetContent(BasicRequest{TableName: table})
 	res, err := c.Do(r)
 	if err != nil {
-		return td, err
+		return td.Table, err
 	}
 	err = unmarshalResponse(res.Body, &td)
-	return td, err
+	return td.Table, err
 }
 
 func unmarshalResponse(data io.Reader, dst interface{}) error {
@@ -271,6 +271,7 @@ func unmarshalResponse(data io.Reader, dst interface{}) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("RESPONSE", string(b))
 	return json.Unmarshal(b, dst)
 }
 
@@ -286,6 +287,15 @@ func MarshalAttributes(i interface{}) (attr AttributeSet, err error) {
 		}
 	}()
 	t, v := reflect.TypeOf(i), reflect.ValueOf(i)
+	k := v.Kind()
+	if k == reflect.Ptr {
+		v = v.Elem()
+		t = reflect.TypeOf(v.Interface())
+	}
+	k = v.Kind()
+	if k != reflect.Struct {
+		return nil, fmt.Errorf("Type was not struct, was %v", k)
+	}
 	attr = AttributeSet{}
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
@@ -351,7 +361,6 @@ func getAttribute(v reflect.Value) AttributeVal {
 		switch e.Kind() {
 		// Check if they're pointers to a number type, otherwise default on putting into the SS category. Thus []*int would get
 		case reflect.Ptr:
-			e.IsNil()
 			switch e.Elem().Kind() {
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.Float32, reflect.Float64:
 				return AttributeVal{NS: vals}
