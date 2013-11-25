@@ -150,7 +150,6 @@ func (r *Request) SetContent(data interface{}) error {
 	if err != nil {
 		return err
 	}
-	// fmt.Printf("JSON: %s\n", string(b))
 	r.req.Body = ioutil.NopCloser(bytes.NewBuffer(b))
 	r.req.ContentLength = int64(len(b))
 	return err
@@ -271,7 +270,6 @@ func unmarshalResponse(data io.Reader, dst interface{}) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("RESPONSE", string(b))
 	return json.Unmarshal(b, dst)
 }
 
@@ -294,7 +292,7 @@ func MarshalAttributes(i interface{}) (attr AttributeSet, err error) {
 	}
 	k = v.Kind()
 	if k != reflect.Struct {
-		return nil, fmt.Errorf("Type was not struct, was %v", k)
+		return nil, fmt.Errorf("Type was not struct or ptr to struct, was %v", k)
 	}
 	attr = AttributeSet{}
 	for i := 0; i < t.NumField(); i++ {
