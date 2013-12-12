@@ -198,12 +198,12 @@ func (c *Client) CreateTableSimple(name, hashKeyName, hashKeyType, rangeKeyName,
 	return res.Description, err
 }
 
-func (c *Client) BatchGetRaw(table string, keys []AttributeSet, filter []string) ([]AttributeSet, map[string]RequestItem, error) {
+func (c *Client) BatchGetRaw(table string, keys []AttributeSet, filter []string) ([]AttributeSet, []RequestItem, error) {
 	req := BatchGetRequest{
 		RequestItems: map[string]RequestItem{table: RequestItem{AttributesToGet: filter, Keys: keys}},
 	}
 	res := BatchResponse{}
-	return res.Responses[table], res.UnprocessedKeys, c.makeRequest(BatchGetItemEndpoint, req, &res)
+	return res.Responses[table], res.UnprocessedItems[table], c.makeRequest(BatchGetItemEndpoint, req, &res)
 }
 
 func (c *Client) DoAndUnmarshal(r *Request, dst interface{}) error {
