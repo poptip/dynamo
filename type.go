@@ -203,7 +203,7 @@ type ConsumedStats struct {
 type BatchResponse struct {
 	ConsumedCapacity []ConsumedStats
 	Responses        map[string][]AttributeSet
-	UnprocessedItems map[string][]RequestItem
+	UnprocessedKeys  map[string]RequestItem
 }
 
 type RequestItem struct {
