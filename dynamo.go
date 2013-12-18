@@ -48,6 +48,7 @@ const (
 	RequestSizeLimitBytes = 1000000
 	minTableLength        = 3
 	maxTableLength        = 255
+	BatchWriteItemLimit   = 25
 )
 
 var NumberRegex *regexp.Regexp
@@ -122,6 +123,9 @@ func (c *Client) BatchWrite(table string, items interface{}) (BatchResponse, err
 		return res, fmt.Errorf("Items must be array or slice, was %v", k)
 	}
 	l := v.Len()
+	if l > BatchWriteItemLimit {
+		return res, errors.New("Maximum of 25 item limit for batch writes exceeded")
+	}
 	reqItems := make([]RequestItem, l)
 	for i := 0; i < v.Len(); i++ {
 		item := v.Index(i).Interface()
@@ -198,6 +202,11 @@ func (c *Client) CreateTableSimple(name, hashKeyName, hashKeyType, rangeKeyName,
 	return res.Description, err
 }
 
+func (c *Client) DeleteTable(name string) (TableDescription, error) {
+	req, res := TableRequest{TableName: name}, TableDescriptionWrapper{}
+	return res.Description, c.makeRequest(DeleteTableEndpoint, req, &res)
+}
+
 func (c *Client) BatchGetRaw(table string, keys []AttributeSet, filter []string) ([]AttributeSet, []RequestItem, error) {
 	req := BatchGetRequest{
 		RequestItems: map[string]RequestItem{table: RequestItem{AttributesToGet: filter, Keys: keys}},
@@ -233,6 +242,7 @@ func (c *Client) ChangeThroughput(table string, read, write int) error {
 	return c.makeRequest(UpdateTableEndpoint, req, nil)
 }
 
+// ListTables returns a limit of 100 tables.
 func (c *Client) ListTables(start string, limit int) ([]string, string, error) {
 	req := ListTablesRequest{
 		ExclusiveStartTableName: start,
