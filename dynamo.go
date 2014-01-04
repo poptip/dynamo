@@ -26,6 +26,9 @@ const (
 	TypeNumberSet = "NS"
 	TypeBinarySet = "BS"
 
+	TypeHashKey  = "HASH"
+	TypeRangeKey = "RANGE"
+
 	// Target endpoints.
 	DynamoBaseEndpoint     = "DynamoDB_20120810."
 	ListTablesEndpoint     = "ListTables"
@@ -35,6 +38,7 @@ const (
 	DeleteTableEndpoint    = "DeleteTable"
 	PutItemEndpoint        = "PutItem"
 	GetItemEndpoint        = "GetItem"
+	UpdateItemEndpoint     = "UpdateItem"
 	DeleteItemEndpoint     = "DeleteItem"
 	BatchGetItemEndpoint   = "BatchGetItem"
 	BatchWriteItemEndpoint = "BatchWriteItem"
@@ -115,6 +119,13 @@ func (c *Client) Do(r *Request) (*http.Response, error) {
 	return res, nil
 }
 
+func (c *Client) RawQuery(q Query) ([]AttributeSet, AttributeSet, error) {
+	res := QueryResponse{}
+	err := c.makeRequest(QueryEndpoint, q, &res)
+	fmt.Println("Full response", res)
+	return res.Items, res.LastEvaluatedKey, err
+}
+
 func (c *Client) BatchWrite(table string, items interface{}) (BatchResponse, error) {
 	// TODO(joy): Check that the total payload size is less than 1MB.
 	req, res := BatchWriteRequest{}, BatchResponse{}
@@ -177,6 +188,32 @@ func (c *Client) PutItem(table string, doc interface{}) error {
 	return err
 }
 
+func (c *Client) UpdateItem(table string, matchDoc interface{}, updates interface{}, updateType string) error {
+	key, err := MarshalAttributes(matchDoc)
+	if err != nil {
+		return err
+	} else if len(key) > 2 {
+		// TODO: Use extra attributes as expected values?
+		return fmt.Errorf("Document contains %d attributes, should only contain hashkey and range key", len(key))
+	}
+	attr, err := MarshalAttributes(updates)
+	if err != nil {
+		return err
+	}
+	updateAttr := map[string]AttributeUpdate{}
+	for a, val := range attr {
+		if _, ok := key[a]; !ok {
+			updateAttr[a] = AttributeUpdate{Value: val, Action: updateType}
+		}
+	}
+	req := Update{
+		TableName:        table,
+		Key:              key,
+		AttributeUpdates: updateAttr,
+	}
+	return c.makeRequest(UpdateItemEndpoint, req, &UpdateResponse{})
+}
+
 func (c *Client) CreateTableSimple(name, hashKeyName, hashKeyType, rangeKeyName, rangeKeyType string, read, write int) (TableDescription, error) {
 	res := TableDescriptionWrapper{}
 	if read == 0 || write == 0 {
@@ -191,11 +228,11 @@ func (c *Client) CreateTableSimple(name, hashKeyName, hashKeyType, rangeKeyName,
 	req := TableRequest{
 		TableName:             name,
 		ProvisionedThroughput: Throughput{ReadUnits: read, WriteUnits: write},
-		KeySchema:             []Key{{Name: hashKeyName, Type: "HASH"}},
+		KeySchema:             []Key{{Name: hashKeyName, Type: TypeHashKey}},
 		AttributeDefinitions:  []AttributeDefinition{{Name: hashKeyName, Type: hashKeyType}},
 	}
 	if len(rangeKeyName) > 0 {
-		req.KeySchema = append(req.KeySchema, Key{Name: rangeKeyName, Type: "RANGE"})
+		req.KeySchema = append(req.KeySchema, Key{Name: rangeKeyName, Type: TypeRangeKey})
 		req.AttributeDefinitions = append(req.AttributeDefinitions, AttributeDefinition{Name: rangeKeyName, Type: rangeKeyType})
 	}
 	err := c.makeRequest(CreateTableEndpoint, req, &res)

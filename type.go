@@ -24,9 +24,20 @@ const (
 	SelectSpecific  = "SPECIFIC_ATTRIBUTES"
 	SelectCount     = "COUNT"
 
+	UpdateTypePut    = "PUT"
+	UpdateTypeDelete = "DELETE"
+	UpdateTypeAdd    = "ADD"
+
+	ReturnNone       = "NONE"
+	ReturnAllOld     = "ALL_OlD"
+	ReturnUpdatedOld = "UPDATED_OLD"
+	ReturnAllNew     = "ALL_NEW"
+	ReturnUpdateNew  = "UPDATED_NEW"
+
 	// Return consumed capacity params.
-	ConsumedTotal = "TOTAL"
-	ConsumedNone  = "NONE"
+	ConsumedTotal   = "TOTAL"
+	ConsumedNone    = "NONE"
+	ConsumedIndexes = "INDEXES"
 
 	// Commonly encountered errors.
 	ProvisionedThroughputExceededException = "ProvisionedThroughputExceededException"
@@ -163,9 +174,46 @@ type Query struct {
 	Limit                  int `json:",omitempty"`
 }
 
+type Update struct {
+	TableName                   string
+	AttributeUpdates            map[string]AttributeUpdate
+	Expected                    map[string]ExpectedValue `json:",omitempty"`
+	Key                         AttributeSet
+	ReturnConsumedCapacity      string `json:",omitempty"`
+	ReturnItemCollectionMetrics string `json:",omitempty"`
+	ReturnValues                string `json:",omitempty"`
+}
+
+type AttributeUpdate struct {
+	Action string
+	Value  AttributeVal
+}
+
+type ExpectedValue struct {
+	Exists bool
+	Value  AttributeVal
+}
+
+type UpdateResponse struct {
+	Attributes       AttributeSet
+	ConsumedCapacity []ConsumedStats
+}
+
+type ScanRequest struct {
+	TableName              string
+	Select                 string
+	AttributesToGet        []string     `json:",omitempty"`
+	ExclusiveStartKey      AttributeSet `json:",omitempty"`
+	Limit                  int          `json:",omitempty"`
+	ReturnConsumedCapacity string       `json:",omitempty"`
+	ScanFilter             map[string]Condition
+	Segment                int
+	TotalSegments          int
+}
+
 type Condition struct {
-	AttributeValueList  []AttributeVal
-	ComparisonOperation string
+	AttributeValueList []AttributeVal
+	ComparisonOperator string
 }
 
 type Scan struct {
@@ -198,6 +246,13 @@ type BatchGetRequest struct {
 type ConsumedStats struct {
 	CapacityUnits int
 	TableName     string // TODO: Implement TableName restrictions.
+}
+
+type QueryResponse struct {
+	ConsumedCapacity ConsumedStats
+	Count            int
+	Items            []AttributeSet
+	LastEvaluatedKey AttributeSet
 }
 
 type BatchResponse struct {
