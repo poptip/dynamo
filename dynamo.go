@@ -53,6 +53,8 @@ const (
 	minTableLength        = 3
 	maxTableLength        = 255
 	BatchWriteItemLimit   = 25
+	BatchGetItemLimit     = 100
+	ItemSizeLimit         = 64000
 )
 
 var NumberRegex *regexp.Regexp
@@ -122,7 +124,6 @@ func (c *Client) Do(r *Request) (*http.Response, error) {
 func (c *Client) RawQuery(q Query) ([]AttributeSet, AttributeSet, error) {
 	res := QueryResponse{}
 	err := c.makeRequest(QueryEndpoint, q, &res)
-	fmt.Println("Full response", res)
 	return res.Items, res.LastEvaluatedKey, err
 }
 
@@ -145,6 +146,29 @@ func (c *Client) BatchWrite(table string, items interface{}) (BatchResponse, err
 			return res, err
 		}
 		reqItems[i].PutRequest = &PutRequest{Item: attr}
+	}
+	req.RequestItems = map[string][]RequestItem{table: reqItems}
+	return res, c.makeRequest(BatchWriteItemEndpoint, req, &res)
+}
+
+func (c *Client) BatchDelete(table string, items interface{}) (BatchResponse, error) {
+	req, res := BatchWriteRequest{}, BatchResponse{}
+	v := reflect.ValueOf(items)
+	if k := v.Kind(); k != reflect.Array && k != reflect.Slice {
+		return res, fmt.Errorf("Items must be array or slice, was %v", k)
+	}
+	l := v.Len()
+	if l > BatchWriteItemLimit {
+		return res, errors.New("Maximum of 25 item limit for batch writes exceeded")
+	}
+	reqItems := make([]RequestItem, l)
+	for i := 0; i < v.Len(); i++ {
+		item := v.Index(i).Interface()
+		attr, err := MarshalAttributes(item)
+		if err != nil {
+			return res, err
+		}
+		reqItems[i].DeleteRequest = &DeleteRequest{Key: attr}
 	}
 	req.RequestItems = map[string][]RequestItem{table: reqItems}
 	return res, c.makeRequest(BatchWriteItemEndpoint, req, &res)
@@ -205,6 +229,19 @@ func (c *Client) UpdateItem(table string, matchDoc interface{}, updates interfac
 		if _, ok := key[a]; !ok {
 			updateAttr[a] = AttributeUpdate{Value: val, Action: updateType}
 		}
+	}
+	req := Update{
+		TableName:        table,
+		Key:              key,
+		AttributeUpdates: updateAttr,
+	}
+	return c.makeRequest(UpdateItemEndpoint, req, &UpdateResponse{})
+}
+
+func (c *Client) UpdateItemRaw(table string, key AttributeSet, updates AttributeSet, updateType string) error {
+	updateAttr := map[string]AttributeUpdate{}
+	for a, val := range updates {
+		updateAttr[a] = AttributeUpdate{Value: val, Action: updateType}
 	}
 	req := Update{
 		TableName:        table,
