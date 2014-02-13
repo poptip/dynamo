@@ -249,10 +249,10 @@ type ConsumedStats struct {
 }
 
 type QueryResponse struct {
-	ConsumedCapacity ConsumedStats
-	Count            int
-	Items            []AttributeSet
-	LastEvaluatedKey AttributeSet
+	ConsumedCapacity    ConsumedStats
+	Count, ScannedCount int
+	Items               []AttributeSet
+	LastEvaluatedKey    AttributeSet
 }
 
 type BatchResponse struct {

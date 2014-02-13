@@ -127,6 +127,12 @@ func (c *Client) RawQuery(q Query) ([]AttributeSet, AttributeSet, error) {
 	return res.Items, res.LastEvaluatedKey, err
 }
 
+func (c *Client) RawScan(s ScanRequest) ([]AttributeSet, AttributeSet, error) {
+	res := QueryResponse{}
+	err := c.makeRequest(ScanEndpoint, s, &res)
+	return res.Items, res.LastEvaluatedKey, err
+}
+
 func (c *Client) BatchWrite(table string, items interface{}) (BatchResponse, error) {
 	// TODO(joy): Check that the total payload size is less than 1MB.
 	req, res := BatchWriteRequest{}, BatchResponse{}
