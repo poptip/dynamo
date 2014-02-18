@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/crowdmob/goamz/aws"
+	"github.com/crowdmob/goamz/cloudwatch"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -330,6 +331,19 @@ func (c *Client) ListTables(start string, limit int) ([]string, string, error) {
 	}
 	res := ListTablesResponse{}
 	return res.TableNames, res.LastEvaluatedTableName, c.makeRequest(ListTablesEndpoint, req, &res)
+}
+
+func (c *Client) AddAlarms(table string, readPercent, writePerent float64) error {
+	alarm := cloudwatch.MetricAlarm{
+		AlarmName:          table + "-Alarm",
+		ComparisonOperator: "GreaterThanThreshold",
+		Unit:               "Percent",
+		Namespace:          "AWS/DynamoDB",
+		Period:             60 * 30,
+		MetricName:         "ThrottledRequests",
+	}
+	_, err := cloudwatch.PutMetricAlam(&alarm)
+	return err
 }
 
 func isValidType(attrType string) bool {

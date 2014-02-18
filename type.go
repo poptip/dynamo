@@ -282,3 +282,16 @@ type Error struct {
 	Type       string `json:"__type"`
 	Message    string `json:"message"`
 }
+
+type MetricAlarmRequest struct {
+	ActionsEnabled     bool
+	AlarmName          string
+	ComparisonOperator string
+	EvaluationPeriods  int
+	MetricName         string
+	Namespace          string
+	Period             int
+	Statistic          string
+	Threshold          float64
+	Unit               string
+}
