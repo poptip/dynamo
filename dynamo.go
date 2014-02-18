@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -62,6 +63,7 @@ var NumberRegex *regexp.Regexp
 
 type Client struct {
 	c        *http.Client
+	cw       *cloudwatch.CloudWatch
 	signer   *aws.V4Signer
 	Auth     aws.Auth
 	Region   aws.Region
@@ -77,11 +79,16 @@ func init() {
 }
 
 func NewClient(auth aws.Auth, region aws.Region) *Client {
+	cw, err := cloudwatch.NewCloudWatch(auth, region.CloudWatchServicepoint)
+	if err != nil {
+		panic(fmt.Errorf("Could not initialize Cloudwatch: %s", err.Error()))
+	}
 	return &Client{
 		Auth:     auth,
 		Region:   region,
 		Endpoint: region.DynamoDBEndpoint,
 		c:        &http.Client{},
+		cw:       cw,
 		signer:   aws.NewV4Signer(auth, "dynamodb", region),
 	}
 }
@@ -333,17 +340,56 @@ func (c *Client) ListTables(start string, limit int) ([]string, string, error) {
 	return res.TableNames, res.LastEvaluatedTableName, c.makeRequest(ListTablesEndpoint, req, &res)
 }
 
-func (c *Client) AddAlarms(table string, readPercent, writePerent float64) error {
-	alarm := cloudwatch.MetricAlarm{
-		AlarmName:          table + "-Alarm",
-		ComparisonOperator: "GreaterThanThreshold",
-		Unit:               "Percent",
-		Namespace:          "AWS/DynamoDB",
-		Period:             60 * 30,
-		MetricName:         "ThrottledRequests",
+func (c *Client) AddAlarms(table string, readThreshold, writeThreshold float64) error {
+	if readThreshold <= 0 && writeThreshold <= 0 {
+		return errors.New("Invalid threshold values, at least one should be greater than 0")
 	}
-	_, err := cloudwatch.PutMetricAlam(&alarm)
-	return err
+	wg := sync.WaitGroup{}
+	var readAlarmErr, writeAlarmErr error
+	if readThreshold > 0 {
+		wg.Add(1)
+		readAlarm := cloudwatch.MetricAlarm{
+			AlarmName:          table + "-ReadAlarm",
+			ComparisonOperator: "GreaterThanThreshold",
+			Namespace:          "AWS/DynamoDB",
+			Statistic:          "Sum",
+			AlarmActions:       []cloudwatch.AlarmAction{{ARN: "arn:aws:sns:us-east-1:436204345238:dynamodb"}},
+			Period:             60 * 5, // Take the average every 5 minutes 4 times (for 20 minutes).
+			EvaluationPeriods:  4,
+			MetricName:         "ConsumedReadCapacityUnits",
+			Threshold:          readThreshold * 60 * 5 * 4,
+			Dimensions:         []cloudwatch.Dimension{{Name: "TableName", Value: table}},
+		}
+		go func() {
+			_, readAlarmErr = c.cw.PutMetricAlarm(&readAlarm)
+			wg.Done()
+		}()
+	}
+	if writeThreshold > 0 {
+		wg.Add(1)
+		writeAlarm := cloudwatch.MetricAlarm{
+			AlarmName:          table + "-WriteAlarm",
+			ComparisonOperator: "GreaterThanThreshold",
+			Namespace:          "AWS/DynamoDB",
+			Statistic:          "Sum",
+			AlarmActions:       []cloudwatch.AlarmAction{{ARN: "arn:aws:sns:us-east-1:436204345238:dynamodb"}},
+			Period:             60 * 5, // Take the average every 5 minutes 4 times (for 20 minutes).
+			EvaluationPeriods:  4,
+			MetricName:         "ConsumedWriteCapacityUnits",
+			Threshold:          writeThreshold * 60 * 5 * 4,
+			Dimensions:         []cloudwatch.Dimension{{Name: "TableName", Value: table}},
+		}
+
+		go func() {
+			_, writeAlarmErr = c.cw.PutMetricAlarm(&writeAlarm)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	if readAlarmErr != nil {
+		return readAlarmErr
+	}
+	return writeAlarmErr
 }
 
 func isValidType(attrType string) bool {
