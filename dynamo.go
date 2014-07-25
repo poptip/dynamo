@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/crowdmob/goamz/aws"
-	"github.com/crowdmob/goamz/cloudwatch"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -17,6 +15,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/crowdmob/goamz/aws"
+	"github.com/crowdmob/goamz/cloudwatch"
 )
 
 const (
@@ -47,16 +48,16 @@ const (
 	QueryEndpoint          = "Query"
 	ScanEndpoint           = "Scan"
 
-	IllegalChars          = "$%^" // TODO(joy): Find out what is legal for table names and attributes.
-	omitEmptyTag          = "omitempty"
-	ignoreTag             = "-"
-	numDigitsPrecision    = 38
-	RequestSizeLimitBytes = 1000000
-	minTableLength        = 3
-	maxTableLength        = 255
-	BatchWriteItemLimit   = 25
-	BatchGetItemLimit     = 100
-	ItemSizeLimit         = 64000
+	IllegalChars        = "$%^" // TODO(joy): Find out what is legal for table names and attributes.
+	omitEmptyTag        = "omitempty"
+	ignoreTag           = "-"
+	numDigitsPrecision  = 38
+	minTableLength      = 3
+	maxTableLength      = 255
+	BatchWriteSizeLimit = 1000000
+	BatchWriteItemLimit = 25
+	BatchGetItemLimit   = 100
+	ItemSizeLimit       = 64000
 )
 
 var NumberRegex *regexp.Regexp
@@ -142,7 +143,6 @@ func (c *Client) RawScan(s ScanRequest) ([]AttributeSet, AttributeSet, error) {
 }
 
 func (c *Client) BatchWrite(table string, items interface{}) (BatchResponse, error) {
-	// TODO(joy): Check that the total payload size is less than 1MB.
 	req, res := BatchWriteRequest{}, BatchResponse{}
 	v := reflect.ValueOf(items)
 	if k := v.Kind(); k != reflect.Array && k != reflect.Slice {
@@ -200,6 +200,9 @@ func (r *Request) SetContentString(data string) {
 
 func (r *Request) SetContent(data interface{}) error {
 	b, err := json.Marshal(data)
+	if len(b) > BatchWriteSizeLimit {
+		return errors.New("Maximum batch write size limit exceeded")
+	}
 	if err != nil {
 		return err
 	}
@@ -209,7 +212,6 @@ func (r *Request) SetContent(data interface{}) error {
 }
 
 func (c *Client) PutItem(table string, doc interface{}) error {
-	// TODO(joy): Check that the total payload size is less than 1MB, and item size is less than 64kb.
 	item, err := MarshalAttributes(doc)
 	if err != nil {
 		return err
